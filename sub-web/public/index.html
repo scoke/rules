@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>订阅转换</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>订阅转换</h1>
+        <span id="backend-status" class="badge">后端检测中…</span>
+      </header>
+
+      <form id="form" class="card" autocomplete="off">
+        <label class="field">
+          <span class="label">订阅链接</span>
+          <textarea
+            id="sources"
+            rows="5"
+            spellcheck="false"
+            placeholder="每行一个订阅链接或节点链接（ss / ssr / vmess / vless / trojan / hysteria2 / tuic / anytls 等）"
+          ></textarea>
+        </label>
+
+        <div class="grid">
+          <label class="field">
+            <span class="label">客户端</span>
+            <select id="target">
+              <option value="clash">Clash / Mihomo（完整配置）</option>
+              <option value="clash-list">Clash 仅节点（proxy-provider）</option>
+              <option value="mixed">通用 Base64（v2rayN / Shadowrocket 等）</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="label">远程配置</span>
+            <input id="config-custom" type="url" spellcheck="false" placeholder="https://raw.githubusercontent.com/scoke/rules/refs/heads/main/clash.ini" />
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span class="label">包含节点</span>
+            <input id="include" placeholder="正则，如 香港|日本" />
+          </label>
+          <label class="field">
+            <span class="label">排除节点</span>
+            <input id="exclude" placeholder="正则，如 到期|剩余|官网" />
+          </label>
+        </div>
+
+        <div class="grid">
+          <label class="field">
+            <span class="label">配置文件名</span>
+            <input id="filename" placeholder="可选，客户端显示的配置名" />
+          </label>
+          <label class="field" id="token-field" hidden>
+            <span class="label">访问令牌</span>
+            <input id="token" type="password" placeholder="部署时设置的 ACCESS_TOKEN" />
+          </label>
+        </div>
+
+        <details class="advanced">
+          <summary>高级选项</summary>
+          <div class="checks">
+            <label title="根据地区关键字为节点名加上国旗"><input type="checkbox" id="emoji" checked /> Emoji</label>
+            <label title="全部节点开启 UDP；不勾选则保留订阅原设置"><input type="checkbox" id="udp" /> 启用 UDP</label>
+            <label title="全部节点跳过证书验证；不勾选则保留订阅原设置"><input type="checkbox" id="scv" /> 跳过证书验证</label>
+            <label title="全部节点开启 TCP Fast Open"><input type="checkbox" id="tfo" /> TCP Fast Open</label>
+            <label title="按节点名称排序"><input type="checkbox" id="sort" /> 节点排序</label>
+            <label title="节点名前加 [SS] [VMess] 等类型"><input type="checkbox" id="append_type" /> 节点类型前缀</label>
+            <label title="把规则集内容直接写入配置"><input type="checkbox" id="expand" /> 展开规则集</label>
+          </div>
+          <p class="hint">
+            不勾选「展开规则集」时生成 rule-providers，客户端经本站 <code>/ruleset</code> 下载规则集，配置小、转换快。
+            勾选后规则全部写入配置；规则上万条时单次转换 CPU 耗时明显超过 Cloudflare 免费版 10 ms 限额，可能报 1102 错误。
+          </p>
+          <div class="grid">
+            <label class="field">
+              <span class="label">节点重命名</span>
+              <input id="rename" placeholder="正则@替换，多条用 ` 分隔，如 \s*\(.*\)@" />
+            </label>
+            <label class="field">
+              <span class="label">拉取订阅的 User-Agent</span>
+              <input id="ua" placeholder="默认 clash.meta" />
+            </label>
+          </div>
+        </details>
+
+        <div class="actions">
+          <button type="submit" class="primary">生成订阅链接</button>
+          <button type="button" id="btn-reset">重置</button>
+        </div>
+      </form>
+
+      <section id="result" class="card" hidden>
+        <label class="field">
+          <span class="label">订阅链接</span>
+          <textarea id="result-url" rows="3" readonly spellcheck="false"></textarea>
+        </label>
+        <div class="actions">
+          <button type="button" id="btn-copy" class="primary">复制</button>
+          <button type="button" id="btn-import">导入 Clash</button>
+          <button type="button" id="btn-preview">预览配置</button>
+          <a id="btn-open" class="button" target="_blank" rel="noopener noreferrer">新窗口打开</a>
+        </div>
+        <div id="preview" hidden>
+          <p id="preview-meta" class="meta"></p>
+          <ul id="preview-warnings" class="warnings"></ul>
+          <pre id="preview-body"></pre>
+        </div>
+      </section>
+
+      <details class="card parse">
+        <summary>从已有链接还原表单</summary>
+        <div class="row">
+          <input id="parse-input" placeholder="粘贴本服务或 subconverter 生成的订阅链接" />
+          <button type="button" id="btn-parse">解析</button>
+        </div>
+      </details>
+
+      <footer class="footer">
+        <p>
+          转换在本站的 Cloudflare Pages Functions 中完成，订阅内容不会发送给第三方。生成的链接包含你的订阅地址，请勿公开分享。
+        </p>
+        <p>接口：<code>/sub?target=clash&amp;url=订阅&amp;config=配置</code>，参数与 subconverter 兼容。</p>
+      </footer>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

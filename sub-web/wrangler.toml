@@ -1,0 +1,8 @@
+name = "sub-web"
+compatibility_date = "2025-09-01"
+pages_build_output_dir = "public"
+
+# 可选：设置后 /sub 接口要求携带 token=<ACCESS_TOKEN> 参数。
+# 建议在 Cloudflare 控制台以「加密变量」方式配置，不要写在这里。
+# [vars]
+# ACCESS_TOKEN = ""

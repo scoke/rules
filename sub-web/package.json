@@ -1,0 +1,15 @@
+{
+  "name": "sub-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "运行在 Cloudflare Pages 上的订阅转换网页与接口，内置解析与 Clash 配置生成，不依赖外部 subconverter",
+  "type": "module",
+  "scripts": {
+    "dev": "npx wrangler pages dev",
+    "deploy": "npx wrangler pages deploy",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1"
+  }
+}
