@@ -77,7 +77,9 @@ const CONVERTERS = {
 
   ssr(p) {
     const b64 = (s) => encodeBase64(String(s ?? ''), true);
-    const main = [p.server, p.port, p.protocol, p.cipher, p.obfs, b64(p.password)].join(':');
+    // 解析时把 none 改成了 Clash 认识的 dummy，输出链接要改回来
+    const cipher = p.cipher === 'dummy' ? 'none' : p.cipher;
+    const main = [p.server, p.port, p.protocol, cipher, p.obfs, b64(p.password)].join(':');
     const params = `obfsparam=${b64(p['obfs-param'])}&protoparam=${b64(p['protocol-param'])}&remarks=${b64(p.name)}`;
     return `ssr://${b64(`${main}/?${params}`)}`;
   },

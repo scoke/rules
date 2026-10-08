@@ -2,9 +2,8 @@
 // 支持的键：ruleset、custom_proxy_group、enable_rule_generator、overwrite_original_rules、
 // clash_rule_base、exclude_remarks、include_remarks、rename、emoji、add_emoji、remove_old_emoji。
 
-import { parseBool } from './utils.js';
-
-const TEST_GROUP_TYPES = new Set(['url-test', 'fallback', 'load-balance']);
+import { parseBool, sanitizeText } from './utils.js';
+import { TEST_TYPES } from './groups.js';
 
 export function parseExternalConfig(text, warnings) {
   const cfg = {
@@ -20,7 +19,7 @@ export function parseExternalConfig(text, warnings) {
     addEmoji: null,
     removeOldEmoji: null,
   };
-  const content = String(text || '').replace(/^\uFEFF/, '');
+  const content = sanitizeText(text || '');
   if (/^\s*(proxy-groups|custom_proxy_group)\s*:/m.test(content) || /^\s*\[\[custom_groups\]\]/m.test(content)) {
     throw new Error('暂只支持 ini 格式的外部配置（YAML / TOML 外部配置不受支持）');
   }
@@ -118,7 +117,7 @@ export function parseGroupLine(value) {
   if (!name || !type) return null;
   let items = parts.slice(2);
   const group = { name, type, items: [] };
-  if (TEST_GROUP_TYPES.has(type)) {
+  if (TEST_TYPES.has(type)) {
     const urlIdx = items.findIndex((it) => /^https?:\/\//i.test(it.trim()));
     if (urlIdx >= 0) {
       group.url = items[urlIdx].trim();

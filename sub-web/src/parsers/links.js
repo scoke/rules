@@ -461,10 +461,12 @@ function parseAnyTLS(link) {
 function parseSocks(link) {
   const u = parseStdUri(link);
   let user = u.userinfo;
-  // v2rayN 格式：socks://BASE64(user:pass)@host:port
+  // v2rayN 格式：socks://BASE64(user:pass)@host:port。
+  // 普通用户名也可能恰好能按 Base64 解码出乱码，只有解出 "用户:密码" 才采用解码结果。
   if (user && !user.includes(':')) {
     try {
-      user = decodeBase64(u.rawUserinfo);
+      const decoded = decodeBase64(u.rawUserinfo);
+      if (decoded.includes(':')) user = decoded;
     } catch {
       // 不是 Base64，按原文处理
     }

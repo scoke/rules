@@ -4,7 +4,7 @@
 import { compileRegex } from './utils.js';
 
 export const BUILTIN_POLICIES = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE']);
-const TEST_TYPES = new Set(['url-test', 'fallback', 'load-balance']);
+export const TEST_TYPES = new Set(['url-test', 'fallback', 'load-balance']);
 const KNOWN_TYPES = new Set(['select', 'relay', ...TEST_TYPES]);
 const DEFAULT_TEST_URL = 'http://www.gstatic.com/generate_204';
 

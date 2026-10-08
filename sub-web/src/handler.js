@@ -1,15 +1,10 @@
 // /sub 接口：参数与 subconverter 保持兼容，便于沿用已有的订阅链接写法。
 
 import { convert, createFetcher, parseOptions, UserError } from './convert.js';
+import { checkToken, textResponse } from './http.js';
+import { QueryParams } from './utils.js';
 
 export const VERSION = 'sub-web 1.0.0';
-
-function textResponse(status, body) {
-  return new Response(body, {
-    status,
-    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
-  });
-}
 
 // 仅用 ASCII 传递警告，前端预览时展示
 function encodeWarnings(warnings) {
@@ -24,8 +19,8 @@ function encodeWarnings(warnings) {
 
 export async function handleSub(request, env = {}, fetchImpl = fetch) {
   if (request.method !== 'GET' && request.method !== 'HEAD') return textResponse(405, 'Method Not Allowed');
-  const q = new URL(request.url).searchParams;
-  if (env.ACCESS_TOKEN && q.get('token') !== env.ACCESS_TOKEN) return textResponse(403, '访问令牌错误或缺失（token 参数）');
+  const denied = checkToken(new QueryParams(new URL(request.url).search.slice(1)), env);
+  if (denied) return denied;
 
   let result;
   let opts;

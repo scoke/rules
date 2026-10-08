@@ -38,15 +38,19 @@ function mockFetch(calls = []) {
       'https://rules.example/direct.list': () => new Response('# 注释\nDOMAIN-SUFFIX,cn\nIP-CIDR,10.0.0.0/8,no-resolve\nUSER-AGENT,x*\n'),
       'https://rules.example/proxy.yaml': () => new Response("payload:\n  - DOMAIN-SUFFIX,google.com\n  - '+.youtube.com'\n"),
     };
-    const route = routes[url];
+    const route = routes[url] || routes[url.split('?')[0]];
     return route ? route() : new Response('not found', { status: 404 });
   };
 }
 
+// 与网页一致：用 encodeURIComponent 编码，空格为 %20，"+" 为 %2B
+function subUrl(params) {
+  const query = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+  return `https://sub-web.pages.dev/sub?${query}`;
+}
+
 async function call(params, { env = {}, calls } = {}) {
-  const u = new URL('https://sub-web.pages.dev/sub');
-  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-  const res = await handleSub(new Request(u), env, mockFetch(calls));
+  const res = await handleSub(new Request(subUrl(params)), env, mockFetch(calls));
   return { res, text: await res.text() };
 }
 
@@ -167,4 +171,31 @@ test('错误处理与访问令牌', async () => {
   const env = { ACCESS_TOKEN: 'secret' };
   assert.equal((await call({ url: 'https://sub.example/a' }, { env })).res.status, 403);
   assert.equal((await call({ url: 'https://sub.example/a', token: 'secret' }, { env })).res.status, 200);
+});
+
+test('订阅里的 Unicode 换行符不能把配置注释变成顶层设置', async () => {
+  // U+2028 在 mihomo 的 YAML 解析器里是换行；节点名里藏入它，就能让注释提前结束
+  const LS = '\u2028';
+  const evil = `trojan://#x${LS}dns:${LS}  enable: true${LS}  nameserver:${LS}    - 9.9.9.9${LS}%23`;
+  const sneakyName = `trojan://pw@t.com:443#ok${LS}secret: injected`;
+  const { res, text } = await call({ url: [NODES[0], evil, sneakyName].join('|'), expand: 'false' });
+  assert.equal(res.status, 200);
+  for (const ch of ['\u2028', '\u2029', '\u0085']) assert.ok(!text.includes(ch), `输出含 ${JSON.stringify(ch)}`);
+  const doc = YAML.parse(text);
+  assert.equal(doc.dns, undefined);
+  assert.equal(doc.secret, undefined);
+  assert.ok(doc.proxies.some((p) => p.name === 'ok secret: injected'));
+  assert.match(text, /^# 警告：.*x dns: {3}enable: true/m);
+});
+
+test('参数里的 "+" 是字面量：订阅地址、正则和访问令牌都不会变成空格', async () => {
+  const calls = [];
+  const env = { ACCESS_TOKEN: 'a+b' };
+  const { res } = await call({ url: 'https://sub.example/a?k=1+1', include: '香港\\s*0+1', token: 'a+b' }, { env, calls });
+  assert.equal(res.status, 200);
+  assert.ok(calls.some((c) => c.url === 'https://sub.example/a?k=1+1'));
+  assert.equal(res.headers.get('X-Node-Count'), '1');
+  // 旧式链接里用 "+" 表示空格的写法不再支持，会按字面量匹配
+  const raw = await handleSub(new Request('https://x/sub?url=https://sub.example/a&include=%E9%A6%99%E6%B8%AF+01'), {}, mockFetch());
+  assert.equal(raw.status, 400);
 });

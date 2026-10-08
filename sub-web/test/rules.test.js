@@ -97,3 +97,26 @@ test('规则逐行输出：需要转义的字符串经 YAML 解析后保持原�
   assert.deepEqual(YAML.parse(text).rules, rules);
   assert.match(text, /^ {2}- DOMAIN-SUFFIX,google\.com,🚀 节点选择$/m);
 });
+
+test('逻辑规则：转换子规则类型、去掉自带策略，子规则不支持时整条跳过', () => {
+  assert.equal(
+    attachGroup(normalizeRule('AND,((HOST-SUFFIX,a.com),(DEST-PORT,443)),REJECT'), 'G'),
+    'AND,((DOMAIN-SUFFIX,a.com),(DST-PORT,443)),G',
+  );
+  assert.equal(attachGroup(normalizeRule('OR,((AND,((DOMAIN,a.com),(NETWORK,UDP))),(GEOIP,CN))'), 'G'), 'OR,((AND,((DOMAIN,a.com),(NETWORK,UDP))),(GEOIP,CN)),G');
+  assert.deepEqual(normalizeRule('AND,((PROTOCOL,UDP),(DST-PORT,443))'), { unsupported: 'PROTOCOL' });
+  assert.equal(normalizeRule('AND,((DOMAIN,a.com)'), null);
+});
+
+test('规则列表：不带前缀的域名为精确匹配；MATCH / RULE-SET 行被跳过并计数', () => {
+  assert.equal(attachGroup(normalizeRule('example.com'), 'G'), 'DOMAIN,example.com,G');
+  assert.equal(attachGroup(normalizeRule('.example.com'), 'G'), 'DOMAIN-SUFFIX,example.com,G');
+  const { rules, unsupported } = parseRuleList('DOMAIN,a.com\nMATCH\nFINAL\nRULE-SET,x\nSUB-RULE,(DOMAIN,b.com),x\nDOMAIN,c.com\n');
+  assert.deepEqual(
+    rules.map((r) => r.body),
+    ['DOMAIN,a.com', 'DOMAIN,c.com'],
+  );
+  assert.deepEqual([...unsupported], [['MATCH', 2], ['RULE-SET', 1], ['SUB-RULE', 1]]);
+  // 内联规则 []FINAL 仍然可用
+  assert.equal(attachGroup(normalizeRule('FINAL'), 'G'), 'MATCH,G');
+});

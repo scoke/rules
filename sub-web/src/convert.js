@@ -8,7 +8,7 @@ import { buildGroups, BUILTIN_POLICIES, DEFAULT_GROUP_DEFS, DEFAULT_RULES } from
 import { buildProvider, normalizeRule, parseRuleList, RuleCollector } from './rules.js';
 import { DEFAULT_CLASH_BASE, generateClash } from './generators/clash.js';
 import { generateLinks } from './generators/links.js';
-import { encodeBase64, parseBool, splitList } from './utils.js';
+import { encodeBase64, parseBool, QueryParams, splitList } from './utils.js';
 
 export const DEFAULT_UA = 'clash.meta';
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
@@ -29,8 +29,9 @@ const TARGETS = {
   shadowrocket: 'mixed',
 };
 
+// 用 QueryParams 而不是 URLSearchParams：订阅地址、正则里的 "+" 都是字面量，不能变成空格。
 export function parseOptions(requestUrl) {
-  const q = new URL(requestUrl).searchParams;
+  const q = new QueryParams(new URL(requestUrl).search.slice(1));
   const rawTarget = (q.get('target') || 'clash').toLowerCase();
   const target = TARGETS[rawTarget];
   if (!target) throw new UserError(`不支持的 target：${rawTarget}（可选 clash、mixed）`);

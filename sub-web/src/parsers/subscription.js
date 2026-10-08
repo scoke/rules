@@ -2,7 +2,7 @@
 
 import YAML from 'yaml';
 import { parseLink } from './links.js';
-import { tryDecodeBase64 } from '../utils.js';
+import { decodeFragment, sanitizeText, tryDecodeBase64 } from '../utils.js';
 
 export function parseSubscription(input, warnings, label = '订阅') {
   let text = String(input || '').replace(/^\uFEFF/, '').trim();
@@ -18,6 +18,7 @@ export function parseSubscription(input, warnings, label = '订阅') {
     }
   }
 
+  text = sanitizeText(text);
   if (/^\s*proxies\s*:/m.test(text)) return parseClashYaml(text, warnings, label);
   if (text.startsWith('{')) return parseJson(text, warnings, label);
   return parseLinks(text, warnings, label);
@@ -26,7 +27,8 @@ export function parseSubscription(input, warnings, label = '订阅') {
 function parseClashYaml(text, warnings, label) {
   let doc;
   try {
-    doc = YAML.parse(text, { maxAliasCount: -1, uniqueKeys: false });
+    // 保留 yaml 库默认的别名展开上限，防止恶意订阅用嵌套别名耗尽 CPU 和内存
+    doc = YAML.parse(text, { uniqueKeys: false });
   } catch (e) {
     warnings.push(`${label} YAML 解析失败：${e.message.split('\n')[0]}`);
     return [];
@@ -81,18 +83,10 @@ function parseLinks(text, warnings, label) {
       else unknown++;
     } catch (e) {
       const scheme = line.split('://')[0];
-      const name = line.includes('#') ? decodeName(line.slice(line.lastIndexOf('#') + 1)) : '';
+      const name = line.includes('#') ? decodeFragment(line.slice(line.lastIndexOf('#') + 1)) : '';
       warnings.push(`${label}中的 ${scheme} 节点${name ? `「${name}」` : ''}解析失败：${e.message}`);
     }
   }
   if (unknown) warnings.push(`${label}中有 ${unknown} 行无法识别，已跳过`);
   return proxies;
-}
-
-function decodeName(s) {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
 }

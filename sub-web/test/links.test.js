@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseLink } from '../src/parsers/links.js';
 import { parseSubscription } from '../src/parsers/subscription.js';
 import { proxyToLink } from '../src/generators/links.js';
-import { encodeBase64 } from '../src/utils.js';
+import { decodeBase64, encodeBase64 } from '../src/utils.js';
 
 test('ss: SIP002 Base64 用户信息与插件', () => {
   const p = parseLink('ss://YWVzLTI1Ni1nY206cGFzcw@1.2.3.4:8388/?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dexample.com#HK%2001');
@@ -117,4 +117,18 @@ test('订阅内容：Base64、明文、Clash YAML、错误行', () => {
   assert.equal(fromYaml.length, 1);
   assert.equal(fromYaml[0].port, 8388);
   assert.equal(w2.length, 1);
+});
+
+test('socks：明文用户名不会被误当成 Base64；ssr 的 none 加密往返保持不变', () => {
+  assert.equal(parseLink('socks://user@1.2.3.4:1080#a').username, 'user');
+  assert.deepEqual(
+    (({ username, password }) => ({ username, password }))(parseLink(`socks://${encodeBase64('u:p', true)}@1.2.3.4:1080#b`)),
+    { username: 'u', password: 'p' },
+  );
+  const b64 = (s) => encodeBase64(s, true);
+  const ssr = `ssr://${b64(`1.1.1.1:443:origin:none:plain:${b64('pw')}/?remarks=${b64('N')}`)}`;
+  const p = parseLink(ssr);
+  assert.equal(p.cipher, 'dummy');
+  assert.equal(parseLink(proxyToLink(p)).cipher, 'dummy');
+  assert.match(decodeBase64(proxyToLink(p).slice('ssr://'.length)), /:origin:none:plain:/);
 });

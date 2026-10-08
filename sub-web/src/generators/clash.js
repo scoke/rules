@@ -1,6 +1,7 @@
 // 生成 Clash（mihomo）YAML 配置。
 
 import YAML from 'yaml';
+import { sanitizeDeep, sanitizeText } from '../utils.js';
 
 export const DEFAULT_CLASH_BASE = {
   'mixed-port': 7890,
@@ -44,13 +45,15 @@ function dumpRules(rules) {
   return out;
 }
 
+// 注释里带有警告原文（含订阅里的节点名），必须去掉所有换行和控制字符，否则会被 mihomo 当作新的一行。
 export function renderHeader(lines) {
-  return lines.map((l) => `# ${String(l).replace(/[\r\n]+/g, ' ')}`).join('\n') + '\n';
+  return lines.map((l) => `# ${sanitizeText(String(l).replace(/[\r\n\t]+/g, ' '))}`).join('\n') + '\n';
 }
 
+// yaml 库不会给含 U+2028 / U+2029 的字符串加引号，输出前再统一清理一遍。
 export function generateClash({ proxies, groups, rules, providers, base, listOnly, header }) {
   const ordered = proxies.map(orderProxy);
-  if (listOnly) return renderHeader(header) + dump({ proxies: ordered });
+  if (listOnly) return renderHeader(header) + dump(sanitizeDeep({ proxies: ordered }));
 
   const doc = { ...(base || DEFAULT_CLASH_BASE) };
   for (const k of ['proxies', 'proxy-groups', 'rule-providers', 'rules']) delete doc[k];
@@ -61,5 +64,5 @@ export function generateClash({ proxies, groups, rules, providers, base, listOnl
   } else if (base?.['rule-providers']) {
     doc['rule-providers'] = base['rule-providers'];
   }
-  return renderHeader(header) + dump(doc) + dumpRules(rules);
+  return renderHeader(header) + dump(sanitizeDeep(doc)) + dumpRules(rules);
 }

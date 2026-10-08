@@ -60,13 +60,13 @@ export function normalizeRule(raw, format) {
     if (line.startsWith('+.')) return rule('DOMAIN-SUFFIX', `DOMAIN-SUFFIX,${line.slice(2)}`);
     if (first === '.') return rule('DOMAIN-SUFFIX', `DOMAIN-SUFFIX,${line.slice(1)}`);
     if (line.includes('*')) return rule('DOMAIN-WILDCARD', `DOMAIN-WILDCARD,${line}`);
-    const type = format === 'clash-domain' ? 'DOMAIN' : 'DOMAIN-SUFFIX';
-    return rule(type, `${type},${line}`);
+    // Surge DOMAIN-SET 与 Clash domain 列表里，不带前缀的域名都表示精确匹配
+    return rule('DOMAIN', `DOMAIN,${line}`);
   }
 
   let type = line.slice(0, comma).trim().toUpperCase();
   type = ALIASES[type] || type;
-  if (LOGIC.has(type)) return rule(type, `${type},${line.slice(comma + 1).trim()}`);
+  if (LOGIC.has(type)) return normalizeLogic(type, line.slice(comma + 1).trim());
   if (!SUPPORTED.has(type)) return { unsupported: type };
   if (type === 'MATCH') return rule('MATCH', 'MATCH');
 
@@ -84,9 +84,39 @@ export function normalizeRule(raw, format) {
   return rule(type, `${type},${value}`, tail);
 }
 
+// AND / OR / NOT 逻辑规则：AND,((DOMAIN,a.com),(NETWORK,UDP))[,策略]。
+// 只保留括号内的部分（列表里可能自带策略名），并把子规则的类型按别名表转换；
+// 任一子规则是 mihomo 不支持的类型，整条按不支持处理，否则 mihomo 会拒绝加载整个配置。
+function normalizeLogic(type, rest) {
+  if (!rest.startsWith('(')) return null;
+  let depth = 0;
+  let end = -1;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '(') depth++;
+    else if (rest[i] === ')' && --depth === 0) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  let unsupported = null;
+  const inner = rest.slice(0, end + 1).replace(/\(\s*([A-Za-z0-9-]+)\s*,/g, (_, t) => {
+    let sub = t.toUpperCase();
+    sub = ALIASES[sub] || sub;
+    if (!LOGIC.has(sub) && !SUPPORTED.has(sub)) unsupported = sub;
+    return `(${sub},`;
+  });
+  if (unsupported) return { unsupported };
+  return rule(type, `${type},${inner}`);
+}
+
 export function attachGroup(r, group) {
   return `${r.head},${group}${r.tail}`;
 }
+
+// 规则列表里出现这些类型没有意义：MATCH 会让后面的规则全部失效，
+// RULE-SET / SUB-RULE 指向的 provider 在生成的配置里并不存在。
+const LIST_FORBIDDEN = new Set(['MATCH', 'RULE-SET', 'SUB-RULE']);
 
 export function parseRuleList(text, format) {
   const rules = [];
@@ -94,7 +124,8 @@ export function parseRuleList(text, format) {
   for (const raw of String(text).replace(/^\uFEFF/, '').split(/\r?\n/)) {
     const r = normalizeRule(raw, format);
     if (!r) continue;
-    if (r.unsupported) unsupported.set(r.unsupported, (unsupported.get(r.unsupported) || 0) + 1);
+    const bad = r.unsupported || (LIST_FORBIDDEN.has(r.type) ? r.type : null);
+    if (bad) unsupported.set(bad, (unsupported.get(bad) || 0) + 1);
     else rules.push(r);
   }
   return { rules, unsupported };

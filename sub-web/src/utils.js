@@ -34,6 +34,27 @@ export function encodeBase64(str, urlSafe = false) {
   return urlSafe ? out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : out;
 }
 
+// mihomo 的 YAML 解析器按 YAML 1.1 把 U+0085、U+2028、U+2029 也当作换行，而 JS 和 yaml 库不会。
+// 订阅内容里藏有这些字符时，注释或普通标量会在 mihomo 眼里提前结束，后面的文字变成配置的顶层键。
+// 因此所有来自外部的文本在进入流水线前都把它们（连同其他控制字符）替换成空格，保留 \t \r \n。
+const UNSAFE_TEXT = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f\u2028\u2029\ufeff]/g;
+
+export function sanitizeText(s) {
+  return String(s).replace(UNSAFE_TEXT, ' ');
+}
+
+// 递归处理对象中的全部字符串（含键名），用于最终输出前兜底。
+export function sanitizeDeep(value) {
+  if (typeof value === 'string') return sanitizeText(value);
+  if (Array.isArray(value)) return value.map(sanitizeDeep);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[sanitizeText(k)] = sanitizeDeep(v);
+    return out;
+  }
+  return value;
+}
+
 // 只解百分号编码，保留字面量 "+"（节点名、密码里常见）。
 export function decodeFragment(s) {
   if (!s) return '';

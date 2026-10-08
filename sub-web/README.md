@@ -31,6 +31,7 @@ src/               转换逻辑
   rules.js         规则集解析、规范化与 rule-providers
   groups.js        策略组生成（含循环引用处理）
   nodes.js         节点筛选、重命名、Emoji、去重
+  http.js          接口共用的响应与访问令牌校验
 test/              node:test 测试
 ```
 
@@ -59,7 +60,7 @@ npm run deploy        # 即 wrangler pages deploy，首次会提示创建项目
 
 公开部署时，建议在 Pages 项目的「设置 → 变量和机密」里添加加密变量 `ACCESS_TOKEN`。
 设置后 `/sub` 与 `/ruleset` 都要求携带 `token=<ACCESS_TOKEN>` 参数；网页会自动显示令牌输入框，
-生成的订阅链接和 rule-providers 地址会自动带上令牌。
+生成的订阅链接和 rule-providers 地址会自动带上令牌。网页只把令牌保存在当前标签页（`sessionStorage`），关闭标签页后需重新填写。
 
 ## 本地开发
 
@@ -77,7 +78,7 @@ npm test       # 运行测试
 | 参数 | 说明 |
 | --- | --- |
 | `target` | `clash`（默认，也接受 `clashmeta`、`mihomo`）或 `mixed`（也接受 `v2ray`、`base64`、`shadowrocket`） |
-| `url` | 订阅链接或节点链接，多个用 `\|` 分隔，需 URL 编码 |
+| `url` | 订阅链接或节点链接，多个用 `\|` 分隔，需 URL 编码。参数里的 `+` 按字面量处理，空格请编码为 `%20` |
 | `config` | 外部 ini 配置地址；不填时只生成「节点选择」和「自动选择」两个策略组 |
 | `include` / `exclude` | 保留 / 排除节点的正则（匹配原始节点名） |
 | `rename` | 重命名规则 `正则@替换`，多条用 `` ` `` 分隔 |

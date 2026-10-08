@@ -1,4 +1,6 @@
 const STORAGE_KEY = 'sub-web:options';
+// 访问令牌只放在 sessionStorage：刷新页面还在，关掉标签页就清除，不长期留在浏览器里
+const TOKEN_KEY = 'sub-web:token';
 const CHECKS = ['emoji', 'udp', 'scv', 'tfo', 'sort', 'append_type', 'expand'];
 const TEXTS = ['include', 'exclude', 'filename', 'rename', 'ua', 'token'];
 const PREVIEW_LIMIT = 300 * 1024;
@@ -36,8 +38,10 @@ function readForm() {
 }
 
 function saveOptions(form) {
-  const { sources, config, ...options } = form;
+  const { sources, config, token, ...options } = form;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(options));
+  if (token) sessionStorage.setItem(TOKEN_KEY, token);
+  else sessionStorage.removeItem(TOKEN_KEY);
 }
 
 function restoreOptions() {
@@ -47,10 +51,11 @@ function restoreOptions() {
   } catch {
     saved = null;
   }
+  $('token').value = sessionStorage.getItem(TOKEN_KEY) || '';
   if (!saved) return;
   $('target').value = saved.target || 'clash';
   for (const id of CHECKS) if (id in saved) $(id).checked = !!saved[id];
-  for (const id of TEXTS) if (saved[id]) $(id).value = saved[id];
+  for (const id of TEXTS) if (id !== 'token' && saved[id]) $(id).value = saved[id];
 }
 
 function buildUrl(form) {
@@ -61,22 +66,24 @@ function buildUrl(form) {
   if (!sources.length) throw new Error('请填写订阅链接');
   if (form.config && !/^https?:\/\//i.test(form.config)) throw new Error('远程配置需为 http(s) 地址');
 
-  const params = new URLSearchParams();
-  params.set('target', form.target === 'clash-list' ? 'clash' : form.target);
-  params.set('url', sources.join('|'));
-  if (form.config) params.set('config', form.config);
-  if (form.include) params.set('include', form.include);
-  if (form.exclude) params.set('exclude', form.exclude);
-  if (form.rename) params.set('rename', form.rename);
-  if (form.filename) params.set('filename', form.filename);
-  params.set('emoji', String(form.emoji));
+  // 用 encodeURIComponent 而不是 URLSearchParams：后者把空格编成 "+"，而后端把 "+" 当字面量
+  const params = [];
+  const set = (k, v) => params.push(`${k}=${encodeURIComponent(v)}`);
+  set('target', form.target === 'clash-list' ? 'clash' : form.target);
+  set('url', sources.join('|'));
+  if (form.config) set('config', form.config);
+  if (form.include) set('include', form.include);
+  if (form.exclude) set('exclude', form.exclude);
+  if (form.rename) set('rename', form.rename);
+  if (form.filename) set('filename', form.filename);
+  set('emoji', String(form.emoji));
   // 不勾选时不传，保留订阅里各节点的原始设置
-  for (const id of ['udp', 'scv', 'tfo', 'sort', 'append_type']) if (form[id]) params.set(id, 'true');
-  params.set('expand', String(form.expand));
-  if (form.target === 'clash-list') params.set('list', 'true');
-  if (form.ua) params.set('ua', form.ua);
-  if (form.token) params.set('token', form.token);
-  return `${location.origin}/sub?${params}`;
+  for (const id of ['udp', 'scv', 'tfo', 'sort', 'append_type']) if (form[id]) set(id, 'true');
+  set('expand', String(form.expand));
+  if (form.target === 'clash-list') set('list', 'true');
+  if (form.ua) set('ua', form.ua);
+  if (form.token) set('token', form.token);
+  return `${location.origin}/sub?${params.join('&')}`;
 }
 
 function parseLink(input) {
@@ -198,6 +205,7 @@ function bind() {
 
   $('btn-reset').addEventListener('click', () => {
     localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
     $('form').reset();
     $('result').hidden = true;
   });
